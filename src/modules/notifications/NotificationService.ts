@@ -61,7 +61,7 @@ export class NotificationService {
       let notifications = await db.find('notifications', { userId });
 
       if (onlyUnread) {
-        notifications = notifications.filter((n: Notification) => !n.read);
+        notifications = notifications.filter((n: Notification) => !n.isRead);
       }
 
       // Ordenar por fecha descendente

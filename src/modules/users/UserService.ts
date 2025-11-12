@@ -106,7 +106,7 @@ export class UserService {
 
       if (profiles.length === 0) {
         // Crear si no existe
-        const newProfile = await this.createUserProfile(userId);
+        await this.createUserProfile(userId);
         return this.updateUserProfile(userId, data);
       }
 

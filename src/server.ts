@@ -134,7 +134,7 @@ class Server {
       shutdown('UNCAUGHT_EXCEPTION');
     });
 
-    process.on('unhandledRejection', (reason, promise) => {
+    process.on('unhandledRejection', (reason, _promise) => {
       logger.error('Promesa rechazada no manejada:', reason);
       shutdown('UNHANDLED_REJECTION');
     });

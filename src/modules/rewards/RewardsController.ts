@@ -49,7 +49,7 @@ export class RewardsController {
   /**
    * GET /rewards/catalog
    */
-  getCatalog = async (req: Request, res: Response) => {
+  getCatalog = async (_req: Request, res: Response) => {
     try {
       const catalog = await this.rewardsService.getRewardsCatalog();
       return res.status(200).json({

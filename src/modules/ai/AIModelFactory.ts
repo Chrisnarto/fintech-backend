@@ -100,8 +100,8 @@ export class AnthropicModel implements AIModel {
  */
 export class LocalModel implements AIModel {
   async generateResponse(
-    messages: AIMessage[],
-    modelConfig?: AIModelConfig
+    _messages: AIMessage[],
+    _modelConfig?: AIModelConfig
   ): Promise<AIResponse> {
     logger.info('Generando respuesta con modelo local (mock)');
 

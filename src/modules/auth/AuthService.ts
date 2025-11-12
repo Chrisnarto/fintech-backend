@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { SignOptions } from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from '../../config';
 import logger from '../../utils/logger';
@@ -90,11 +90,11 @@ export class AuthService {
   private generateTokens(payload: TokenPayload): AuthTokens {
     const accessToken = jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.expiresIn,
-    });
+    } as SignOptions);
 
     const refreshToken = jwt.sign(payload, config.jwt.secret, {
       expiresIn: config.jwt.refreshExpiresIn,
-    });
+    } as SignOptions);
 
     return { accessToken, refreshToken };
   }

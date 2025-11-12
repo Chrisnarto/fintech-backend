@@ -51,7 +51,7 @@ export class App {
     this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
     // Logging simple de requests
-    this.app.use((req: Request, res: Response, next: NextFunction) => {
+    this.app.use((req: Request, _res: Response, next: NextFunction) => {
       logger.debug(`${req.method} ${req.path}`);
       next();
     });
@@ -70,7 +70,7 @@ export class App {
    */
   private initializeRoutes(): void {
     // Ruta de health check
-    this.app.get('/health', (req: Request, res: Response) => {
+    this.app.get('/health', (_req: Request, res: Response) => {
       res.status(200).json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -80,7 +80,7 @@ export class App {
     });
 
     // Ruta de bienvenida
-    this.app.get('/', (req: Request, res: Response) => {
+    this.app.get('/', (_req: Request, res: Response) => {
       res.status(200).json({
         message: '💸 Fintech Backend API - Gamificada',
         version: '1.0.0',
@@ -136,7 +136,7 @@ export class App {
    */
   private initializeErrorHandling(): void {
     this.app.use(
-      (err: Error, req: Request, res: Response, next: NextFunction) => {
+      (err: Error, _req: Request, res: Response, _next: NextFunction) => {
         logger.error('Error no manejado:', err);
 
         res.status(500).json({

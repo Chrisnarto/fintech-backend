@@ -92,7 +92,7 @@ export class BelvoIntegration {
   /**
    * Conecta una cuenta bancaria con Belvo
    */
-  async connectBank(userId: string, bankCredentials: any): Promise<string> {
+  async connectBank(userId: string, _bankCredentials: any): Promise<string> {
     logger.info(`Conectando banco para usuario: ${userId}`);
 
     // Simular latencia de API

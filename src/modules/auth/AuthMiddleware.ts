@@ -25,12 +25,13 @@ export class AuthMiddleware {
   /**
    * Middleware para verificar autenticación
    */
-  authenticate = async (req: Request, res: Response, next: NextFunction) => {
+  authenticate = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const authHeader = req.headers.authorization;
 
       if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        return res.status(401).json({ error: 'Token no proporcionado' });
+        res.status(401).json({ error: 'Token no proporcionado' });
+        return;
       }
 
       const token = authHeader.substring(7); // Remover "Bearer "
@@ -40,7 +41,7 @@ export class AuthMiddleware {
       next();
     } catch (error) {
       logger.error('Error en autenticación:', error);
-      return res.status(401).json({ error: 'Token inválido o expirado' });
+      res.status(401).json({ error: 'Token inválido o expirado' });
     }
   };
 
@@ -48,13 +49,15 @@ export class AuthMiddleware {
    * Middleware para verificar roles específicos
    */
   authorize = (...allowedRoles: string[]) => {
-    return (req: Request, res: Response, next: NextFunction) => {
+    return (req: Request, res: Response, next: NextFunction): void => {
       if (!req.user) {
-        return res.status(401).json({ error: 'No autenticado' });
+        res.status(401).json({ error: 'No autenticado' });
+        return;
       }
 
       if (!allowedRoles.includes(req.user.role)) {
-        return res.status(403).json({ error: 'No tienes permisos para esta acción' });
+        res.status(403).json({ error: 'No tienes permisos para esta acción' });
+        return;
       }
 
       next();

@@ -2,11 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import logger from '../../utils/logger';
 import { DatabaseFactory } from '../database';
 import {
-    Achievement,
-    PointsTransaction,
-    Reward,
-    RewardRedemption,
-    UserPoints,
+  Achievement,
+  PointsTransaction,
+  Reward,
+  RewardRedemption,
+  UserPoints,
 } from './types';
 
 export class RewardsService {
@@ -355,31 +355,11 @@ export class RewardsService {
    */
   async checkAndAwardAchievements(userId: string): Promise<Achievement[]> {
     try {
-      // Mock de logros - en producción esto sería más complejo
-      const achievements: Achievement[] = [
-        {
-          id: 'ach-1',
-          name: 'Primera Transacción',
-          description: 'Registra tu primera transacción',
-          icon: '🎯',
-          pointsReward: 100,
-          condition: 'first_transaction',
-          createdAt: new Date(),
-        },
-        {
-          id: 'ach-2',
-          name: 'Ahorrador Principiante',
-          description: 'Ahorra $100.000',
-          icon: '💰',
-          pointsReward: 500,
-          condition: 'save_100k',
-          createdAt: new Date(),
-        },
-      ];
-
       // Aquí se implementaría la lógica de verificación de logros
       logger.debug('Verificando logros para usuario:', userId);
 
+      // Mock de logros - en producción esto sería más complejo
+      // TODO: Implementar lógica real de verificación basada en condiciones
       return [];
     } catch (error) {
       logger.error('Error verificando logros:', error);

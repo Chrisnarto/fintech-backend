@@ -112,7 +112,7 @@ export class ChatController {
    * GET /chat/agents
    * Obtiene los agentes disponibles
    */
-  getAgents = async (req: Request, res: Response) => {
+  getAgents = async (_req: Request, res: Response) => {
     try {
       const agents = this.chatService.getAvailableAgents();
 

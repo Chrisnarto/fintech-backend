@@ -1,9 +1,9 @@
 import logger from '../../utils/logger';
 import { TransactionService } from '../transactions';
 import {
-    FinancialAnalysis,
-    PersonalizedRecommendation,
-    SpendingPrediction,
+  FinancialAnalysis,
+  PersonalizedRecommendation,
+  SpendingPrediction,
 } from './types';
 
 /**
@@ -226,7 +226,7 @@ export class AIToolsService {
     return 'Otros';
   }
 
-  private determineTrend(amount: number): string {
+  private determineTrend(_amount: number): string {
     // Simplificado - en producción se compararía con periodo anterior
     return 'stable';
   }

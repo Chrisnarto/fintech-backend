@@ -162,7 +162,7 @@ export class AIAgentService {
    * Construye el contexto para el modelo de IA
    */
   private buildContext(
-    userId: string,
+    _userId: string,
     message: string,
     chatHistory?: AIMessage[],
     toolData?: any
