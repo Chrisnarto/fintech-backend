@@ -3,10 +3,10 @@ import logger from '../../utils/logger';
 import { DatabaseFactory } from '../database';
 import { BelvoIntegration } from './BelvoIntegration';
 import {
-    CreateTransactionDto,
-    Transaction,
-    TransactionFilter,
-    TransactionStats,
+  CreateTransactionDto,
+  Transaction,
+  TransactionFilter,
+  TransactionStats,
 } from './types';
 
 export class TransactionService {
@@ -15,6 +15,21 @@ export class TransactionService {
 
   constructor() {
     this.belvoIntegration = new BelvoIntegration();
+  }
+
+  /**
+   * Actualiza los challenges del usuario con lazy loading para evitar dependencia circular
+   */
+  private async updateUserChallenges(userId: string): Promise<void> {
+    try {
+      // Lazy import para evitar dependencia circular
+      const { ChallengesService } = await import('../challenges/ChallengesService');
+      const challengesService = new ChallengesService();
+      await challengesService.updateChallengesWithNewData(userId);
+      logger.info(`Challenges actualizados para usuario ${userId}`);
+    } catch (error) {
+      logger.warn('Error actualizando challenges:', error);
+    }
   }
 
   /**
@@ -43,6 +58,11 @@ export class TransactionService {
 
       const created = await db.insert('transactions', transaction);
       logger.info(`Transacción creada: ${created.id}`);
+
+      // Actualizar challenges con la nueva transacción (async, no bloquea)
+      this.updateUserChallenges(userId).catch((error: any) => {
+        logger.warn('Error actualizando challenges después de transacción:', error);
+      });
 
       return created;
     } catch (error) {
@@ -191,6 +211,13 @@ export class TransactionService {
       logger.info(
         `Sincronización completada: ${created.length} nuevas transacciones desde Belvo`
       );
+
+      // Actualizar challenges si se crearon nuevas transacciones (async, no bloquea)
+      if (created.length > 0) {
+        this.updateUserChallenges(userId).catch((error: any) => {
+          logger.warn('Error actualizando challenges después de sync Belvo:', error);
+        });
+      }
 
       return created;
     } catch (error) {
