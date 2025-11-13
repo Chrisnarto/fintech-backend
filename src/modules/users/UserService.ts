@@ -2,11 +2,11 @@ import { v4 as uuidv4 } from 'uuid';
 import logger from '../../utils/logger';
 import { DatabaseFactory } from '../database';
 import {
-    NotificationPreferences,
-    PrivacySettings,
-    UpdateProfileDto,
-    UpdateUserDto,
-    UserProfile,
+  NotificationPreferences,
+  PrivacySettings,
+  UpdateProfileDto,
+  UpdateUserDto,
+  UserProfile,
 } from './types';
 
 export class UserService {

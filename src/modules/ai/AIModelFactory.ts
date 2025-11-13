@@ -1,3 +1,4 @@
+import { config } from '../../config';
 import logger from '../../utils/logger';
 import { AIMessage, AIModelConfig, AIResponse } from './types';
 
@@ -96,6 +97,153 @@ export class AnthropicModel implements AIModel {
 }
 
 /**
+ * Implementación de Ollama
+ */
+export class OllamaModel implements AIModel {
+  private baseUrl: string;
+  private apiKey: string;
+  private model: string;
+
+  constructor() {
+    this.baseUrl = config.integrations.ollama.baseUrl;
+    this.apiKey = config.integrations.ollama.apiKey;
+    this.model = config.integrations.ollama.model;
+    
+    logger.info(`Ollama configurado: ${this.baseUrl} con modelo ${this.model}`);
+  }
+
+  async generateResponse(
+    messages: AIMessage[],
+    modelConfig?: AIModelConfig
+  ): Promise<AIResponse> {
+    try {
+      const model = modelConfig?.model || this.model;
+      logger.info(`Generando respuesta con Ollama: ${model}`);
+
+      // Convertir mensajes al formato de Ollama
+      const ollamaMessages = messages.map((msg) => ({
+        role: msg.role === 'system' ? 'system' : msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      }));
+
+      const requestBody = {
+        model,
+        messages: ollamaMessages,
+        stream: false,
+        options: {
+          temperature: modelConfig?.temperature || 0.7,
+          top_p: modelConfig?.topP || 0.9,
+          ...(modelConfig?.maxTokens && { num_predict: modelConfig.maxTokens }),
+        },
+      };
+
+      logger.debug('Request a Ollama:', JSON.stringify({ url: `${this.baseUrl}/api/chat`, model }));
+
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error(`Ollama error response (${response.status}):`, errorText);
+        throw new Error(`Ollama API error: ${response.status} - ${errorText}`);
+      }
+
+      const data: any = await response.json();
+      logger.info('Respuesta de Ollama recibida exitosamente');
+
+      return {
+        message: data.message?.content || data.response || 'Sin respuesta',
+        usage: {
+          promptTokens: data.prompt_eval_count || 0,
+          completionTokens: data.eval_count || 0,
+          totalTokens: (data.prompt_eval_count || 0) + (data.eval_count || 0),
+        },
+        model: data.model || model,
+      };
+    } catch (error: any) {
+      logger.error('Error en Ollama:', error.message);
+      logger.error('Stack:', error.stack);
+      throw new Error(`Error al generar respuesta con Ollama: ${error.message}`);
+    }
+  }
+
+  async *streamResponse(
+    messages: AIMessage[],
+    modelConfig?: AIModelConfig
+  ): AsyncGenerator<string, void, unknown> {
+    try {
+      const model = modelConfig?.model || this.model;
+      logger.info(`Streaming respuesta con Ollama: ${model}`);
+
+      const ollamaMessages = messages.map((msg) => ({
+        role: msg.role === 'system' ? 'system' : msg.role === 'user' ? 'user' : 'assistant',
+        content: msg.content,
+      }));
+
+      const requestBody = {
+        model,
+        messages: ollamaMessages,
+        stream: true,
+        options: {
+          temperature: modelConfig?.temperature || 0.7,
+          top_p: modelConfig?.topP || 0.9,
+          ...(modelConfig?.maxTokens && { num_predict: modelConfig.maxTokens }),
+        },
+      };
+
+      const response = await fetch(`${this.baseUrl}/api/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(this.apiKey && { 'Authorization': `Bearer ${this.apiKey}` }),
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok || !response.body) {
+        const errorText = await response.text();
+        throw new Error(`Ollama streaming error: ${response.status} - ${errorText}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n').filter((line) => line.trim());
+
+          for (const line of lines) {
+            try {
+              const data = JSON.parse(line);
+              if (data.message?.content) {
+                yield data.message.content;
+              }
+            } catch {
+              // Ignorar líneas que no son JSON
+            }
+          }
+        }
+      } finally {
+        reader.releaseLock();
+      }
+    } catch (error: any) {
+      logger.error('Error en streaming de Ollama:', error);
+      throw new Error(`Error al hacer streaming con Ollama: ${error.message}`);
+    }
+  }
+}
+
+/**
  * Implementación de modelo local (mock)
  */
 export class LocalModel implements AIModel {
@@ -127,7 +275,7 @@ export class LocalModel implements AIModel {
  * Factory para crear instancias de modelos de IA
  */
 export class AIModelFactory {
-  static getModel(type: 'openai' | 'anthropic' | 'local'): AIModel {
+  static getModel(type: 'openai' | 'anthropic' | 'ollama' | 'local'): AIModel {
     logger.info(`Inicializando modelo de IA: ${type}`);
 
     switch (type) {
@@ -135,11 +283,13 @@ export class AIModelFactory {
         return new OpenAIModel();
       case 'anthropic':
         return new AnthropicModel();
+      case 'ollama':
+        return new OllamaModel();
       case 'local':
         return new LocalModel();
       default:
-        logger.warn(`Modelo desconocido: ${type}, usando OpenAI por defecto`);
-        return new OpenAIModel();
+        logger.warn(`Modelo desconocido: ${type}, usando Ollama por defecto`);
+        return new OllamaModel();
     }
   }
 }

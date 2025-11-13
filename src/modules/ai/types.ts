@@ -17,6 +17,7 @@ export interface AIModelConfig {
   model: string;
   temperature?: number;
   maxTokens?: number;
+  topP?: number;
 }
 
 export interface FinancialAnalysis {

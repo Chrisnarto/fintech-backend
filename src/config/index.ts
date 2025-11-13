@@ -33,6 +33,14 @@ export const config = {
     anthropic: {
       apiKey: process.env.ANTHROPIC_API_KEY || 'mock',
     },
+    ollama: {
+      apiKey: process.env.OLLAMA_API_KEY || '',
+      baseUrl: process.env.OLLAMA_BASE_URL || 'https://cloud.ollamaapi.com',
+      model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
+    },
+  },
+  ai: {
+    provider: (process.env.AI_PROVIDER || 'ollama') as 'openai' | 'anthropic' | 'ollama' | 'local',
   },
 };
 

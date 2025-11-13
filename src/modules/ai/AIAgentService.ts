@@ -14,7 +14,7 @@ export class AIAgentService {
   private aiTools: AIToolsService;
   private db = DatabaseFactory.getInstance();
 
-  constructor(modelType: 'openai' | 'anthropic' | 'local' = 'openai') {
+  constructor(modelType: 'openai' | 'anthropic' | 'ollama' | 'local' = 'ollama') {
     this.aiModel = AIModelFactory.getModel(modelType);
     this.aiTools = new AIToolsService();
   }

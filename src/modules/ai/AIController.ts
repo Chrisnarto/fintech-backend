@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { config } from '../../config';
 import logger from '../../utils/logger';
 import { AIAgentService } from './AIAgentService';
 import { AIToolsService } from './AIToolsService';
@@ -8,7 +9,7 @@ export class AIController {
   private aiTools: AIToolsService;
 
   constructor() {
-    this.aiAgent = new AIAgentService('openai');
+    this.aiAgent = new AIAgentService(config.ai.provider);
     this.aiTools = new AIToolsService();
   }
 

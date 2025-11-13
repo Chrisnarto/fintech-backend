@@ -608,5 +608,129 @@ Genera los desafíos ahora:`;
     await db.delete('challenges', id);
     logger.info(`Desafío eliminado: ${id}`);
   }
+
+  /**
+   * Actualiza challenges existentes basado en nuevas transacciones
+   * Este método se llama cuando hay cambios significativos en el comportamiento financiero
+   */
+  async updateChallengesWithNewData(userId: string): Promise<Challenge[]> {
+    try {
+      logger.info(`Actualizando challenges para usuario ${userId} con nuevas transacciones`);
+
+      // Obtener challenges activos actuales
+      const activeChallenges = await this.getActiveChallenges(userId);
+
+      // Recopilar datos actualizados del usuario
+      const userData = await this.gatherUserData(userId, true, true, true);
+
+      // Si el usuario tiene muchas transacciones nuevas, regenerar challenges
+      const recentTransactions = [
+        ...(userData.income?.recent || []),
+        ...(userData.expenses?.recent || []),
+      ];
+
+      if (recentTransactions.length > 5) {
+        logger.info(`Usuario tiene ${recentTransactions.length} transacciones recientes, regenerando challenges`);
+
+        // Marcar challenges antiguos como completados/cancelados si es necesario
+        for (const challenge of activeChallenges) {
+          if (this.shouldUpdateChallenge(challenge, userData)) {
+            await this.updateChallenge(challenge.id, { status: 'completed' as any });
+          }
+        }
+
+        // Generar nuevos challenges basados en datos actualizados
+        const input: GenerateChallengesInput = { 
+          userId,
+          count: 3 
+        };
+        return await this.generateChallenges(input);
+      }
+
+      logger.info('No es necesario actualizar challenges por ahora');
+      return activeChallenges;
+    } catch (error) {
+      logger.error('Error actualizando challenges con nuevas transacciones:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Determina si un challenge debe ser actualizado basado en nuevos datos
+   */
+  private shouldUpdateChallenge(challenge: Challenge, userData: any): boolean {
+    // Si es un spending limit y el usuario ha gastado mucho más
+    if (challenge.type === 'spending_limit') {
+      const totalExpenses = userData.expenses?.total || 0;
+      const targetAmount = challenge.rules.targetAmount || 0;
+      return totalExpenses > targetAmount * 1.5;
+    }
+
+    // Si es un category ban y el usuario ha gastado en esa categoría
+    if (challenge.type === 'category_ban' && challenge.rules.category) {
+      const category = challenge.rules.category;
+      const categoryExpenses = userData.expenses?.byCategory?.[category];
+      return categoryExpenses && categoryExpenses.total > 0;
+    }
+
+    // Si el challenge ha expirado
+    if (challenge.endDate && new Date(challenge.endDate) < new Date()) {
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Genera challenges semanales automáticamente para todos los usuarios activos
+   * Este método debe ser llamado por un job/worker semanal
+   */
+  async generateWeeklyChallengesForAllUsers(): Promise<void> {
+    try {
+      logger.info('🤖 Iniciando generación semanal de challenges para todos los usuarios');
+
+      const db = await this.db;
+
+      // Obtener todos los usuarios activos (que tengan transacciones recientes)
+      const users = await db.find('users', {});
+
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (const user of users) {
+        try {
+          // Verificar si el usuario tiene transacciones en los últimos 7 días
+          const recentTransactions = await db.find('transactions', {
+            userId: user.id,
+          });
+
+          const hasRecentActivity = recentTransactions.some((t: any) => {
+            const transactionDate = new Date(t.date);
+            const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+            return transactionDate > weekAgo;
+          });
+
+          if (hasRecentActivity) {
+            logger.info(`Generando challenges semanales para usuario: ${user.id}`);
+
+            // Actualizar challenges con nuevos datos
+            await this.updateChallengesWithNewData(user.id);
+
+            successCount++;
+          }
+        } catch (error) {
+          logger.error(`Error generando challenges para usuario ${user.id}:`, error);
+          errorCount++;
+        }
+      }
+
+      logger.info(
+        `✅ Generación semanal completada: ${successCount} exitosos, ${errorCount} errores`
+      );
+    } catch (error) {
+      logger.error('Error en generación semanal de challenges:', error);
+      throw error;
+    }
+  }
 }
 

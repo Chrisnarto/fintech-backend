@@ -4,6 +4,7 @@ import { AIWorker } from './modules/ai';
 import { ChatWebSocket } from './modules/chat';
 import { DatabaseFactory } from './modules/database';
 import logger from './utils/logger';
+import { ChallengesWorker } from './workers/ChallengesWorker';
 
 /**
  * Clase principal del servidor
@@ -13,6 +14,7 @@ class Server {
   private app: App;
   private chatWebSocket?: ChatWebSocket;
   private aiWorker?: AIWorker;
+  private challengesWorker?: ChallengesWorker;
 
   constructor() {
     this.app = new App();
@@ -40,6 +42,9 @@ class Server {
 
       // Iniciar AI Worker para tareas programadas
       this.startAIWorker();
+
+      // Iniciar Challenges Worker para generación semanal
+      this.startChallengesWorker();
 
       // Manejar cierre graceful
       this.setupGracefulShutdown(server);
@@ -93,6 +98,20 @@ class Server {
   }
 
   /**
+   * Inicia el Challenges Worker para generación semanal
+   */
+  private startChallengesWorker(): void {
+    try {
+      this.challengesWorker = new ChallengesWorker();
+      this.challengesWorker.start();
+      logger.info('✅ Challenges Worker iniciado - Se ejecutará todos los lunes a las 00:00');
+    } catch (error) {
+      logger.error('Error iniciando Challenges Worker:', error);
+      // No detener el servidor si falla el worker
+    }
+  }
+
+  /**
    * Configura el cierre graceful del servidor
    */
   private setupGracefulShutdown(server: any): void {
@@ -114,6 +133,12 @@ class Server {
       if (this.aiWorker) {
         this.aiWorker.stop();
         logger.info('AI Worker detenido');
+      }
+
+      // Detener Challenges Worker
+      if (this.challengesWorker) {
+        this.challengesWorker.stop();
+        logger.info('Challenges Worker detenido');
       }
 
       // Desconectar base de datos
