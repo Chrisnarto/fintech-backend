@@ -35,7 +35,7 @@ export const config = {
     },
     ollama: {
       apiKey: process.env.OLLAMA_API_KEY || '',
-      baseUrl: process.env.OLLAMA_BASE_URL || 'https://cloud.ollamaapi.com',
+      baseUrl: process.env.OLLAMA_BASE_URL || 'https://cloud.ollama.com',
       model: process.env.OLLAMA_MODEL || 'deepseek-v3.1:671b-cloud',
     },
   },

@@ -137,7 +137,13 @@ export class OllamaModel implements AIModel {
         },
       };
 
-      logger.debug('Request a Ollama:', JSON.stringify({ url: `${this.baseUrl}/api/chat`, model }));
+      // ✅ FIX: No usar JSON.stringify - Winston lo serializa automáticamente
+      logger.debug('Request a Ollama:', { 
+        url: `${this.baseUrl}/api/chat`, 
+        model,
+        messagesCount: ollamaMessages.length 
+      });
+      logger.debug('Request body:', requestBody);
 
       const response = await fetch(`${this.baseUrl}/api/chat`, {
         method: 'POST',
@@ -167,7 +173,20 @@ export class OllamaModel implements AIModel {
         model: data.model || model,
       };
     } catch (error: any) {
-      logger.error('Error en Ollama:', error.message);
+      // ✅ FIX: Más info de debugging
+      logger.error('Error en Ollama:', {
+        message: error.message,
+        cause: error.cause,
+        code: error.code,
+        type: error.constructor.name,
+      });
+      if (error.cause) {
+        logger.error('Error cause:', {
+          causeMessage: error.cause.message,
+          causeCode: error.cause.code,
+          causeType: error.cause.constructor.name,
+        });
+      }
       logger.error('Stack:', error.stack);
       throw new Error(`Error al generar respuesta con Ollama: ${error.message}`);
     }
