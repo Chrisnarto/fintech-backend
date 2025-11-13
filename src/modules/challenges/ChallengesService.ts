@@ -807,15 +807,6 @@ Genera los desafíos ahora:`;
   }
 
   /**
-   * Determina si un challenge debe ser actualizado basado en nuevos datos
-   * (Método legacy - ya no se usa con el nuevo sistema de actualización por transacción)
-   */
-  private shouldUpdateChallenge(_challenge: Challenge, _userData: any): boolean {
-    // Este método ya no se usa - la actualización ahora es por transacción individual
-    return false;
-  }
-
-  /**
    * Genera challenges semanales automáticamente para todos los usuarios activos
    * Este método debe ser llamado por un job/worker semanal
    */
