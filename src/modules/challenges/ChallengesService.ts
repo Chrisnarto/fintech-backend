@@ -615,40 +615,51 @@ Genera los desafíos ahora:`;
    */
   async updateChallengesWithNewData(userId: string): Promise<Challenge[]> {
     try {
-      logger.info(`Actualizando challenges para usuario ${userId} con nuevas transacciones`);
+      logger.info(`Actualizando challenges para usuario ${userId} con nueva transacción`);
 
       // Obtener challenges activos actuales
       const activeChallenges = await this.getActiveChallenges(userId);
 
-      // Recopilar datos actualizados del usuario
-      const userData = await this.gatherUserData(userId, true, true, true);
-
-      // Si el usuario tiene muchas transacciones nuevas, regenerar challenges
-      const recentTransactions = [
-        ...(userData.income?.recent || []),
-        ...(userData.expenses?.recent || []),
-      ];
-
-      if (recentTransactions.length > 5) {
-        logger.info(`Usuario tiene ${recentTransactions.length} transacciones recientes, regenerando challenges`);
-
-        // Marcar challenges antiguos como completados/cancelados si es necesario
-        for (const challenge of activeChallenges) {
-          if (this.shouldUpdateChallenge(challenge, userData)) {
-            await this.updateChallenge(challenge.id, { status: 'completed' as any });
-          }
-        }
-
-        // Generar nuevos challenges basados en datos actualizados
-        const input: GenerateChallengesInput = { 
-          userId,
-          count: 3 
-        };
-        return await this.generateChallenges(input);
+      // Obtener la última transacción del usuario
+      const db = await this.db;
+      const allTransactions = await db.find('transactions', { userId });
+      
+      if (allTransactions.length === 0) {
+        logger.info('No hay transacciones para analizar');
+        return activeChallenges;
       }
 
-      logger.info('No es necesario actualizar challenges por ahora');
-      return activeChallenges;
+      // Ordenar por fecha y obtener la más reciente
+      const sortedTransactions = allTransactions.sort((a: any, b: any) => 
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      const latestTransaction = sortedTransactions[0];
+
+      logger.info(`Analizando transacción: ${latestTransaction.description} - $${latestTransaction.amount} (${latestTransaction.type})`);
+
+      // Actualizar progreso de challenges activos con la nueva transacción
+      const updatedChallenges: Challenge[] = [];
+      for (const challenge of activeChallenges) {
+        const updated = await this.updateChallengeProgressWithTransaction(challenge, latestTransaction);
+        if (updated) {
+          updatedChallenges.push(updated);
+        }
+      }
+
+      // Si hay menos de 3 challenges activos, generar nuevos
+      const remainingActive = await this.getActiveChallenges(userId);
+      if (remainingActive.length < 3) {
+        logger.info(`Solo ${remainingActive.length} challenges activos, generando nuevos...`);
+        const input: GenerateChallengesInput = { 
+          userId,
+          count: 3 - remainingActive.length 
+        };
+        const newChallenges = await this.generateChallenges(input);
+        return [...remainingActive, ...newChallenges];
+      }
+
+      logger.info(`✅ ${updatedChallenges.length} challenges actualizados con la nueva transacción`);
+      return remainingActive;
     } catch (error) {
       logger.error('Error actualizando challenges con nuevas transacciones:', error);
       throw error;
@@ -656,28 +667,151 @@ Genera los desafíos ahora:`;
   }
 
   /**
-   * Determina si un challenge debe ser actualizado basado en nuevos datos
+   * Actualiza el progreso de un challenge específico con una nueva transacción
    */
-  private shouldUpdateChallenge(challenge: Challenge, userData: any): boolean {
-    // Si es un spending limit y el usuario ha gastado mucho más
-    if (challenge.type === 'spending_limit') {
-      const totalExpenses = userData.expenses?.total || 0;
-      const targetAmount = challenge.rules.targetAmount || 0;
-      return totalExpenses > targetAmount * 1.5;
-    }
+  private async updateChallengeProgressWithTransaction(
+    challenge: Challenge,
+    transaction: any
+  ): Promise<Challenge | null> {
+    try {
+      const updated = { ...challenge };
+      let shouldUpdate = false;
+      let shouldComplete = false;
 
-    // Si es un category ban y el usuario ha gastado en esa categoría
-    if (challenge.type === 'category_ban' && challenge.rules.category) {
-      const category = challenge.rules.category;
-      const categoryExpenses = userData.expenses?.byCategory?.[category];
-      return categoryExpenses && categoryExpenses.total > 0;
-    }
+      switch (challenge.type) {
+        case 'savings':
+          // Si es ingreso, sumar al progreso
+          if (transaction.type === 'income') {
+            const currentAmount = challenge.progress?.currentAmount || 0;
+            const newAmount = currentAmount + Math.abs(transaction.amount);
+            updated.progress = {
+              ...challenge.progress,
+              currentAmount: newAmount,
+              lastCheckedAt: new Date(),
+            };
+            shouldUpdate = true;
+            
+            // Verificar si completó el desafío
+            if (newAmount >= (challenge.rules.targetAmount || 0)) {
+              shouldComplete = true;
+              logger.info(`🎉 Challenge completado: ${challenge.title}`);
+            }
+          }
+          break;
 
-    // Si el challenge ha expirado
-    if (challenge.endDate && new Date(challenge.endDate) < new Date()) {
-      return true;
-    }
+        case 'spending_limit':
+          // Si es gasto en la categoría, verificar límite
+          if (transaction.type === 'expense') {
+            const category = challenge.rules.category;
+            if (!category || transaction.category === category) {
+              const currentSpent = challenge.progress?.currentAmount || 0;
+              const newSpent = currentSpent + Math.abs(transaction.amount);
+              updated.progress = {
+                ...challenge.progress,
+                currentAmount: newSpent,
+                lastCheckedAt: new Date(),
+              };
+              shouldUpdate = true;
 
+              // Si excedió el límite, marcar como fallido
+              if (newSpent > (challenge.rules.targetAmount || 0)) {
+                updated.status = ChallengeStatus.FAILED;
+                shouldUpdate = true;
+                logger.info(`❌ Challenge fallido (excedió límite): ${challenge.title}`);
+              }
+            }
+          }
+          break;
+
+        case 'category_ban':
+          // Si gastó en categoría prohibida, marcar como fallido
+          if (transaction.type === 'expense' && transaction.category === challenge.rules.category) {
+            updated.status = ChallengeStatus.FAILED;
+            updated.progress = {
+              ...challenge.progress,
+              lastCheckedAt: new Date(),
+            };
+            shouldUpdate = true;
+            logger.info(`❌ Challenge fallido (gastó en categoría prohibida): ${challenge.title}`);
+          }
+          break;
+
+        case 'goal_contribution':
+          // Si es contribución a meta, actualizar progreso
+          if (transaction.type === 'income' && transaction.description.toLowerCase().includes('ahorro')) {
+            const currentAmount = challenge.progress?.currentAmount || 0;
+            const newAmount = currentAmount + Math.abs(transaction.amount);
+            updated.progress = {
+              ...challenge.progress,
+              currentAmount: newAmount,
+              lastCheckedAt: new Date(),
+            };
+            shouldUpdate = true;
+
+            if (newAmount >= (challenge.rules.targetAmount || 0)) {
+              shouldComplete = true;
+              logger.info(`🎉 Challenge de contribución completado: ${challenge.title}`);
+            }
+          }
+          break;
+
+        case 'streak':
+          // Actualizar racha de días sin gastar en categoría
+          if (transaction.type === 'expense' && transaction.category === challenge.rules.category) {
+            // Rompió la racha
+            updated.progress = {
+              currentStreak: 0,
+              lastCheckedAt: new Date(),
+            };
+            updated.status = ChallengeStatus.FAILED;
+            shouldUpdate = true;
+            logger.info(`❌ Racha rota: ${challenge.title}`);
+          }
+          break;
+      }
+
+      // Si debe completarse, cambiar estado y dar puntos
+      if (shouldComplete) {
+        updated.status = ChallengeStatus.COMPLETED;
+        shouldUpdate = true;
+
+        // Dar puntos de recompensa
+        try {
+          await this.rewardsService.addPoints(
+            challenge.userId,
+            challenge.rewardPoints,
+            `Challenge completado: ${challenge.title}`,
+            { challengeId: challenge.id }
+          );
+        } catch (error) {
+          logger.error('Error otorgando puntos de recompensa:', error);
+        }
+      }
+
+      // Guardar cambios si hubo actualización
+      if (shouldUpdate) {
+        const db = await this.db;
+        await db.update('challenges', challenge.id, {
+          status: updated.status,
+          progress: updated.progress,
+        });
+        logger.info(`✅ Challenge actualizado: ${challenge.title} (${updated.status})`);
+        return updated;
+      }
+
+      return null;
+    } catch (error) {
+      logger.error(`Error actualizando challenge ${challenge.id}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Determina si un challenge debe ser actualizado basado en nuevos datos
+   * (Método legacy - ya no se usa con el nuevo sistema de actualización por transacción)
+   */
+  private shouldUpdateChallenge(_challenge: Challenge, _userData: any): boolean {
+    // Este método ya no se usa - la actualización ahora es por transacción individual
     return false;
   }
 
