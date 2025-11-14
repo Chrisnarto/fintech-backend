@@ -66,7 +66,7 @@ export class RewardsService {
   async getUserPoints(userId: string): Promise<UserPoints> {
     try {
       const db = await this.db;
-      const points = await db.find('user_points', { userId });
+      const points = await db.find('rewards_points', { userId });
 
       if (points.length === 0) {
         return this.createUserPoints(userId);
@@ -94,7 +94,7 @@ export class RewardsService {
         totalSpent: 0,
       };
 
-      const created = await db.insert('user_points', userPoints);
+      const created = await db.insert('rewards_points', userPoints);
       logger.info(`Puntos inicializados para usuario: ${userId}`);
 
       return created;
@@ -117,7 +117,7 @@ export class RewardsService {
       const db = await this.db;
       const userPoints = await this.getUserPoints(userId);
 
-      const updated = await db.update('user_points', userPoints.id, {
+      const updated = await db.update('rewards_points', userPoints.id, {
         points: userPoints.points + points,
         totalEarned: userPoints.totalEarned + points,
       });
@@ -151,7 +151,7 @@ export class RewardsService {
         throw new Error('Puntos insuficientes');
       }
 
-      const updated = await db.update('user_points', userPoints.id, {
+      const updated = await db.update('rewards_points', userPoints.id, {
         points: userPoints.points - points,
         totalSpent: userPoints.totalSpent + points,
       });
